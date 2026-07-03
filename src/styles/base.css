@@ -1,0 +1,20 @@
+@import './tokens.css';
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--text); font-family: var(--font-body); }
+h1, h2, h3 { font-family: var(--font-display); }
+
+/* metallic sheen sweep — add .sheen to any metallic-filled element */
+.sheen { position: relative; overflow: hidden; }
+.sheen::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,var(--sheen-opacity)) 48%, rgba(255,255,255,0.05) 52%, transparent 70%);
+  background-size: 250% 100%;
+  animation: sheenMove var(--sheen-duration) ease-in-out infinite;
+}
+@keyframes sheenMove {
+  0% { background-position: 120% 0; }
+  60% { background-position: -40% 0; }
+  100% { background-position: -40% 0; }
+}
+@media (prefers-reduced-motion: reduce) { .sheen::after { animation: none; } }

@@ -1,0 +1,1 @@
+-- Vesta schema — designed in Phase 3, applied via Supabase SQL editor. Placeholder.

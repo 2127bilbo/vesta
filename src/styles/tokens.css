@@ -1,0 +1,43 @@
+/* VESTA DESIGN TOKENS — LOCKED 2026-07-02, Phase 1 sign-off 2026-07-03
+   darkness 50% · highlight +14 · shimmer 16% · speed 5.5s
+   Do not edit without a Decision Log entry. */
+:root {
+  /* base */
+  --bg: #0C0A08;            /* Hearthstone */
+  --surface: #171310;       /* Ash */
+  --surface-2: #1F1A15;     /* Charcoal */
+  --border: #2C251D;
+  --text: #F2EDE6;
+  --text-dim: #A89E92;
+
+  /* core hexes — text & small elements */
+  --ember: #872600;
+  --gold: #995900;
+  --bob: #00592D;
+  --chassidy: #370059;
+  --success: #166B3D;
+  --warning: #8F7410;
+  --error: #8F2E2E;
+
+  /* metallic gradients — bars, chips, fills, buttons */
+  --m-ember: linear-gradient(135deg,hsl(17,100%,11.9%) 0%,hsl(17,100%,26.5%) 30%,hsl(17,100%,40.5%) 50%,hsl(17,100%,26.5%) 70%,hsl(17,100%,10.1%) 100%);
+  --m-gold: linear-gradient(135deg,hsl(35,100%,13.5%) 0%,hsl(35,100%,30%) 30%,hsl(35,100%,44.3%) 50%,hsl(35,100%,30%) 70%,hsl(35,100%,11.5%) 100%);
+  --m-bob: linear-gradient(135deg,hsl(150,100%,7.9%) 0%,hsl(150,100%,17.5%) 30%,hsl(150,100%,31.5%) 50%,hsl(150,100%,17.5%) 70%,hsl(150,100%,6.7%) 100%);
+  --m-chassidy: linear-gradient(135deg,hsl(277,100%,7.9%) 0%,hsl(277,100%,17.5%) 30%,hsl(277,100%,31.5%) 50%,hsl(277,100%,17.5%) 70%,hsl(277,100%,6.7%) 100%);
+  --m-both: linear-gradient(135deg,hsl(150,100%,7.9%) 0%,hsl(150,100%,17.5%) 22%,hsl(213.5,100%,31.5%) 50%,hsl(277,100%,17.5%) 78%,hsl(277,100%,7%) 100%);
+  --m-success: linear-gradient(135deg,hsl(145,65%,8%) 0%,hsl(145,65%,17.5%) 30%,hsl(145,65%,31.5%) 50%,hsl(145,65%,17.5%) 70%,hsl(145,65%,6.7%) 100%);
+  --m-warning: linear-gradient(135deg,hsl(48,86%,9%) 0%,hsl(48,86%,20%) 30%,hsl(48,86%,34%) 50%,hsl(48,86%,20%) 70%,hsl(48,86%,7.7%) 100%);
+  --m-error: linear-gradient(135deg,hsl(0,60%,10%) 0%,hsl(0,60%,22%) 30%,hsl(0,60%,36%) 50%,hsl(0,60%,22%) 70%,hsl(0,60%,8.5%) 100%);
+
+  /* shimmer */
+  --sheen-opacity: 0.16;
+  --sheen-duration: 5.5s;
+
+  /* type */
+  --font-display: 'Fraunces', serif;
+  --font-body: 'Nunito Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* spacing scale */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px; --sp-5: 32px;
+}
