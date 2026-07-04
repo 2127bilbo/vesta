@@ -1,6 +1,6 @@
 # HANDOFF — Vesta
-**Last updated:** 2026-07-03
-**Updated by:** Claude — Session 5: v1 Build Complete + Vercel Deploy
+**Last updated:** 2026-07-04
+**Updated by:** Claude — Session 6: Bookmarklet + Browser Extension
 **Project type:** Web (PWA, mobile-first, multi-household)
 
 ---
@@ -12,17 +12,18 @@
 
 ---
 
-## COMPLETED THIS SESSION
-- Built Calendar module (month/agenda/day views, recurring events, color coding, edit/delete)
-- Built Lists module (grocery/home lists, realtime sync, check-off)
-- Built Recipes module (recipe storage, cook mode, URL import via Edge Function, grocery integration)
-- Built The Decider module (random choice picker, recipe integration)
-- Built Vacation module (trip ideas, savings tracking, contributions)
-- Built Settings module (profile editor, household invites, sign out)
-- Built Home dashboard (today's events, upcoming events, list counts, settings access)
-- Moved Settings to gear icon on Home (nav bar now has 6 tabs)
-- Deployed to Vercel
-- Fixed calendar mobile overflow issue
+## COMPLETED THIS SESSION (Session 6)
+- Added bookmarklet recipe import (3rd tab in Import Modal)
+- Created browser extension for Chrome/Edge (Manifest V3)
+- Fixed auth loading hang (5s timeout fallback)
+- Fixed duplicate email signup detection (empty identities check)
+- Added food emoji detection for Decider "From Recipes" button
+
+## COMPLETED SESSION 5
+- Built all v1 modules (Calendar, Lists, Recipes, Decider, Vacation, Settings, Home)
+- Deployed to Vercel with GitHub auto-deploy
+- Recipe URL import with Edge Function + paste fallback
+- Fixed calendar mobile overflow
 
 ## PRIOR SESSIONS
 - S4: Git init, Supabase schema, module map, notification architecture
@@ -59,7 +60,7 @@
 | **Home** | Today's events, upcoming 7 days, unchecked list count, settings gear | Done |
 | **Calendar** | Month/agenda/day views, add/edit/delete events, recurring (daily/weekly/etc), color categories, reminders | Done |
 | **Lists** | Multiple lists (Grocery, Home), add/check/delete items, realtime sync | Done |
-| **Recipes** | Recipe cards, detail view, cook mode, URL import, paste import, add to grocery list | Done |
+| **Recipes** | Recipe cards, detail view, cook mode, URL/paste/bookmarklet import, add to grocery list | Done |
 | **Decider** | Decision lists, emoji icons, spin to pick, recipe integration ("What to Eat") | Done |
 | **Vacation** | Trip ideas, set active goal, budget tracking, add funds, contribution history | Done |
 | **Settings** | Profile name/color, household invite codes, sign out | Done |
@@ -121,17 +122,42 @@ Settings accessible via gear icon on Home screen.
 - **Decided:** Deploy on Vercel with GitHub auto-deploy
 - **Why:** Zero config for Vite, free tier sufficient, instant deploys
 
+### 2026-07-04 — Bookmarklet + Browser Extension for recipe import
+- **Decided:** Provide bookmarklet in-app + standalone browser extension
+- **Why:** Sites like AllRecipes block server-side fetching; bookmarklet runs in user's browser
+- **Extension:** Manifest V3, located in `browser-extension/`, load unpacked in dev mode
+
+---
+
+## BROWSER EXTENSION
+Located at `browser-extension/` — Chrome/Edge extension for recipe import.
+
+**Installation:**
+1. Open `chrome://extensions` or `edge://extensions`
+2. Enable "Developer mode"
+3. Click "Load unpacked"
+4. Select the `browser-extension` folder
+
+**Features:** Extracts JSON-LD recipe schema from any page, opens Vesta with data.
+
 ---
 
 ## ENVIRONMENT & CONFIG
 - **GitHub:** https://github.com/2127bilbo/vesta
-- **Vercel:** Auto-deploy from master branch
+- **Vercel:** Auto-deploy from main branch
 - **Supabase:** ogiyhazpgqrglanvhpdj.supabase.co
 - **Env vars:** VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
 
 ---
 
 ## SESSION CHANGELOG
+
+### Session 6 — 2026-07-04
+- Added bookmarklet for recipe import (bypasses bot detection)
+- Created Chrome/Edge browser extension (Manifest V3)
+- Fixed auth loading timeout (5s fallback prevents hang)
+- Fixed duplicate email signup error message
+- Added emoji detection to Decider "From Recipes" button
 
 ### Session 5 — 2026-07-03
 - Built all v1 modules (Calendar, Lists, Recipes, Decider, Vacation, Settings, Home)

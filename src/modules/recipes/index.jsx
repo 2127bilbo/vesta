@@ -15,6 +15,37 @@ export default function Recipes() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Check for bookmarklet import data in URL hash
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#import=')) {
+      try {
+        const encoded = hash.slice(8);
+        const json = decodeURIComponent(atob(encoded));
+        const data = JSON.parse(json);
+
+        // Clear the hash
+        window.history.replaceState(null, '', window.location.pathname);
+
+        // Create recipe object and open in edit mode
+        const recipe = {
+          title: data.title || 'Imported Recipe',
+          description: data.description || '',
+          prep_time: data.prepTime || null,
+          cook_time: data.cookTime || null,
+          servings: data.servings || null,
+          ingredients: data.ingredients || [],
+          instructions: data.instructions || [],
+          tags: data.tags || [],
+          source_url: data.url || null,
+        };
+        setEditingRecipe(recipe);
+      } catch (e) {
+        console.error('Failed to parse bookmarklet data:', e);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (!profile?.household_id) return;
 
@@ -576,11 +607,24 @@ function RecipeModal({ recipe, profile, onClose, onSave }) {
 // IMPORT FROM URL MODAL
 // ─────────────────────────────────────────────────────────────
 function ImportModal({ profile, onClose, onImported }) {
-  const [mode, setMode] = useState('url'); // 'url' or 'paste'
+  const [mode, setMode] = useState('url'); // 'url', 'paste', or 'bookmarklet'
   const [url, setUrl] = useState('');
   const [pastedContent, setPastedContent] = useState('');
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  // Get the base URL for the bookmarklet redirect
+  const baseUrl = window.location.origin;
+
+  // The bookmarklet code - extracts JSON-LD recipe data and redirects to Vesta
+  const bookmarkletCode = `javascript:(function(){try{var s=document.querySelectorAll('script[type="application/ld+json"]');var r=null;for(var i=0;i<s.length;i++){try{var d=JSON.parse(s[i].textContent);if(Array.isArray(d))d=d.find(function(x){return x['@type']==='Recipe';});if(d&&d['@type']==='Recipe'){r=d;break;}}catch(e){}}if(!r){alert('No recipe found on this page');return;}var data={title:r.name||'',description:r.description||'',prepTime:r.prepTime?parseInt(r.prepTime.match(/\\d+/)||0):null,cookTime:r.cookTime?parseInt(r.cookTime.match(/\\d+/)||0):null,servings:r.recipeYield?parseInt(r.recipeYield)||null:null,ingredients:(r.recipeIngredient||[]).map(function(i){return{amount:'',item:i};}),instructions:(r.recipeInstructions||[]).map(function(s){return typeof s==='string'?s:s.text||'';}),tags:(r.recipeCategory||[]).concat(r.recipeCuisine||[]),url:window.location.href};var encoded=btoa(encodeURIComponent(JSON.stringify(data)));window.location.href='${baseUrl}#import='+encoded;}catch(e){alert('Error: '+e.message);}})();`;
+
+  function copyBookmarklet() {
+    navigator.clipboard.writeText(bookmarkletCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   async function handleUrlImport(e) {
     e.preventDefault();
@@ -716,7 +760,7 @@ function ImportModal({ profile, onClose, onImported }) {
                 background: mode === 'url' ? 'var(--m-gold)' : 'transparent',
               }}
             >
-              From URL
+              URL
             </button>
             <button
               onClick={() => setMode('paste')}
@@ -725,7 +769,16 @@ function ImportModal({ profile, onClose, onImported }) {
                 background: mode === 'paste' ? 'var(--m-gold)' : 'transparent',
               }}
             >
-              Paste Recipe
+              Paste
+            </button>
+            <button
+              onClick={() => setMode('bookmarklet')}
+              style={{
+                ...styles.modeBtn,
+                background: mode === 'bookmarklet' ? 'var(--m-gold)' : 'transparent',
+              }}
+            >
+              Bookmarklet
             </button>
           </div>
 
@@ -806,6 +859,58 @@ Instructions:
               >
                 Parse & Import
               </button>
+            </>
+          ) : (
+            <>
+              <p style={styles.importHint}>
+                Some sites block automatic import. Use a bookmarklet to import recipes from any page.
+              </p>
+
+              <div style={styles.bookmarkletSteps}>
+                <div style={styles.step}>
+                  <span style={styles.stepNum}>1</span>
+                  <span>Copy the bookmarklet code below</span>
+                </div>
+                <div style={styles.step}>
+                  <span style={styles.stepNum}>2</span>
+                  <span>Create a new bookmark in your browser</span>
+                </div>
+                <div style={styles.step}>
+                  <span style={styles.stepNum}>3</span>
+                  <span>Paste the code as the bookmark URL</span>
+                </div>
+                <div style={styles.step}>
+                  <span style={styles.stepNum}>4</span>
+                  <span>Click the bookmark on any recipe page</span>
+                </div>
+              </div>
+
+              <div style={styles.bookmarkletBox}>
+                <code style={styles.bookmarkletCode}>
+                  {bookmarkletCode.slice(0, 60)}...
+                </code>
+              </div>
+
+              <button
+                onClick={copyBookmarklet}
+                style={{
+                  ...styles.primaryBtn,
+                  marginTop: 'var(--sp-2)',
+                }}
+              >
+                {copied ? 'Copied!' : 'Copy Bookmarklet Code'}
+              </button>
+
+              <p style={styles.bookmarkletNote}>
+                On desktop, you can also drag this link to your bookmarks bar:{' '}
+                <a
+                  href={bookmarkletCode}
+                  onClick={(e) => e.preventDefault()}
+                  style={styles.bookmarkletLink}
+                >
+                  Import to Vesta
+                </a>
+              </p>
             </>
           )}
         </div>
@@ -1281,5 +1386,57 @@ const styles = {
     fontSize: 14,
     fontWeight: 600,
     cursor: 'pointer',
+  },
+
+  // Bookmarklet styles
+  bookmarkletSteps: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+    marginBottom: 'var(--sp-3)',
+  },
+  step: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    fontSize: 14,
+    color: 'var(--text)',
+  },
+  stepNum: {
+    width: 24,
+    height: 24,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'var(--m-gold)',
+    borderRadius: '50%',
+    fontSize: 12,
+    fontWeight: 700,
+    flexShrink: 0,
+  },
+  bookmarkletBox: {
+    padding: 12,
+    background: 'var(--surface-2)',
+    borderRadius: 8,
+    border: '1px solid var(--border)',
+    overflow: 'hidden',
+  },
+  bookmarkletCode: {
+    fontSize: 11,
+    color: 'var(--text-dim)',
+    wordBreak: 'break-all',
+    fontFamily: 'monospace',
+  },
+  bookmarkletNote: {
+    fontSize: 12,
+    color: 'var(--text-dim)',
+    textAlign: 'center',
+    marginTop: 'var(--sp-3)',
+    lineHeight: 1.5,
+  },
+  bookmarkletLink: {
+    color: 'var(--gold)',
+    textDecoration: 'none',
+    fontWeight: 600,
   },
 };
