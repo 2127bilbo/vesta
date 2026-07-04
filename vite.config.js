@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       manifest: false, // we ship our own public/manifest.webmanifest
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
-        globIgnores: ['browser-extension/**']
+        globPatterns: ['**/*.{js,css,html,png,ico,svg,woff,woff2}'],
+        navigateFallback: 'index.html'
       }
     })
   ]
