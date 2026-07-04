@@ -8,7 +8,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: false, // we ship our own public/manifest.webmanifest
-      workbox: { globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'] }
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        globIgnores: ['browser-extension/**']
+      }
     })
   ]
 });
