@@ -813,7 +813,7 @@ function ImportModal({ profile, onClose, onImported }) {
                 {importing ? 'Importing...' : 'Import'}
               </button>
             </>
-          ) : (
+          ) : mode === 'paste' ? (
             <>
               <p style={styles.importHint}>
                 Copy the recipe from the website and paste it here. Include title, ingredients, and instructions.
