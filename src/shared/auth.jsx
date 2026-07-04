@@ -115,6 +115,12 @@ export async function signUp(email, password, metadata = {}) {
     },
   });
   if (error) throw error;
+
+  // Check if user already exists (Supabase returns empty identities for existing email)
+  if (data?.user?.identities?.length === 0) {
+    throw new Error('An account with this email already exists. Try signing in instead.');
+  }
+
   return data;
 }
 
