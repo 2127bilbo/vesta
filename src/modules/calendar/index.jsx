@@ -1409,8 +1409,11 @@ const styles = {
   monthContainer: {
     flex: 1,
     overflowY: 'auto',
+    overflowX: 'hidden',
     padding: 'var(--sp-3)',
     paddingTop: 0,
+    width: '100%',
+    boxSizing: 'border-box',
   },
   monthDayLabels: {
     display: 'grid',
@@ -1428,9 +1431,12 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: 'repeat(7, 1fr)',
     gap: 2,
+    width: '100%',
+    overflow: 'hidden',
   },
   monthDay: {
     aspectRatio: '1',
+    minWidth: 0,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -1440,6 +1446,7 @@ const styles = {
     background: 'var(--surface)',
     border: '2px solid transparent',
     cursor: 'pointer',
+    overflow: 'hidden',
   },
   monthDayToday: {
     borderColor: 'var(--gold)',
