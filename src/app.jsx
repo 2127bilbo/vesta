@@ -1,4 +1,5 @@
 // SHELL ONLY — navigation + module mounting. No business logic lives here, ever.
+// Vesta v1.0
 import { useState } from 'react';
 import { Home as HomeIcon, Calendar, ListChecks, UtensilsCrossed, Dices, Plane, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from './shared/auth.jsx';
