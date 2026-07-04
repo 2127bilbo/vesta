@@ -422,13 +422,16 @@ function AddIdeaModal({ profile, onClose }) {
   const [targetDate, setTargetDate] = useState('');
   const [budget, setBudget] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!destination.trim()) return;
 
     setSaving(true);
-    await supabase.from('vacation_ideas').insert({
+    setError('');
+
+    const { error: insertError } = await supabase.from('vacation_ideas').insert({
       household_id: profile.household_id,
       destination: destination.trim(),
       notes: notes.trim() || null,
@@ -436,7 +439,15 @@ function AddIdeaModal({ profile, onClose }) {
       budget: budget ? parseFloat(budget) : null,
       saved_amount: 0,
     });
+
     setSaving(false);
+
+    if (insertError) {
+      console.error('Vacation save error:', insertError);
+      setError(insertError.message);
+      return;
+    }
+
     onClose();
   }
 
@@ -490,6 +501,10 @@ function AddIdeaModal({ profile, onClose }) {
               style={{ ...styles.input, paddingLeft: 36 }}
             />
           </div>
+
+          {error && (
+            <p style={{ color: '#FF3B30', fontSize: 13, marginTop: 8 }}>{error}</p>
+          )}
         </div>
       </div>
     </div>
