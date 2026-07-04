@@ -1,15 +1,23 @@
 // SHELL ONLY — navigation + module mounting. No business logic lives here, ever.
 import { useState } from 'react';
-import { Home as HomeIcon, Calendar, ListChecks, Settings as SettingsIcon } from 'lucide-react';
-import { useAuth } from './shared/auth';
+import { Home as HomeIcon, Calendar, ListChecks, UtensilsCrossed, Dices, Plane, Settings as SettingsIcon } from 'lucide-react';
+import { useAuth } from './shared/auth.jsx';
 import Auth from './shared/components/Auth.jsx';
 import Home from './modules/home/index.jsx';
+import Lists from './modules/lists/index.jsx';
+import CalendarModule from './modules/calendar/index.jsx';
+import Settings from './modules/settings/index.jsx';
+import Recipes from './modules/recipes/index.jsx';
+import Decider from './modules/decider/index.jsx';
+import Vacation from './modules/vacation/index.jsx';
 
 const TABS = [
   { id: 'home', label: 'Home', icon: HomeIcon, component: Home },
-  { id: 'calendar', label: 'Calendar', icon: Calendar, component: null },
-  { id: 'lists', label: 'Lists', icon: ListChecks, component: null },
-  { id: 'settings', label: 'Settings', icon: SettingsIcon, component: null },
+  { id: 'calendar', label: 'Calendar', icon: Calendar, component: CalendarModule },
+  { id: 'lists', label: 'Lists', icon: ListChecks, component: Lists },
+  { id: 'recipes', label: 'Recipes', icon: UtensilsCrossed, component: Recipes },
+  { id: 'decider', label: 'Decider', icon: Dices, component: Decider },
+  { id: 'vacation', label: 'Vacation', icon: Plane, component: Vacation },
 ];
 
 function Loading() {
@@ -78,6 +86,10 @@ export default function App() {
     <div style={{ minHeight: '100dvh', paddingBottom: 76 }}>
       {!hasHousehold && active !== 'settings' ? (
         <NeedsHousehold />
+      ) : active === 'settings' ? (
+        <Settings onBack={() => setActive('home')} />
+      ) : active === 'home' ? (
+        <Home onOpenSettings={() => setActive('settings')} />
       ) : ActiveComponent ? (
         <ActiveComponent />
       ) : (

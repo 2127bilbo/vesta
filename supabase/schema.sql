@@ -39,6 +39,8 @@ CREATE TABLE events (
   end_at TIMESTAMPTZ,
   all_day BOOLEAN DEFAULT false,
   reminder_minutes INTEGER, -- minutes before start_at to send push
+  recurrence TEXT DEFAULT 'none', -- none, daily, weekly, biweekly, monthly, yearly
+  recurrence_end_at TIMESTAMPTZ, -- when recurrence stops (null = forever)
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );

@@ -1,6 +1,6 @@
 // Auth screens — login, signup, join household
 import { useState } from 'react';
-import { signIn, signUp, joinHouseholdByCode, createHousehold } from '../auth';
+import { signIn, signUp, joinHouseholdByCode, createHousehold } from '../auth.jsx';
 
 export default function Auth({ onSuccess }) {
   const [mode, setMode] = useState('login'); // login | signup | setup
