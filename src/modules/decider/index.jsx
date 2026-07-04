@@ -237,7 +237,12 @@ function SpinnerView({ list, profile, onBack, onUpdate }) {
         <div style={styles.optionsHeader}>
           <h3 style={styles.optionsTitle}>Options ({items.length})</h3>
           <div style={styles.optionsActions}>
-            {list.name.toLowerCase().includes('eat') && (
+            {(list.name.toLowerCase().includes('eat') ||
+              list.name.toLowerCase().includes('food') ||
+              list.name.toLowerCase().includes('dinner') ||
+              list.name.toLowerCase().includes('lunch') ||
+              list.name.toLowerCase().includes('recipe') ||
+              ['🍽️', '🍴', '🍕', '🍔', '🌮', '🍜', '🍲', '🥘', '🍳'].includes(list.emoji)) && (
               <button onClick={() => setShowRecipes(true)} style={styles.addFromBtn}>
                 <UtensilsCrossed size={16} />
                 From Recipes
