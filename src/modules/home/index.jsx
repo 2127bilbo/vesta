@@ -4,11 +4,12 @@ import { Calendar, ListChecks, Settings } from 'lucide-react';
 import { supabase } from '../../shared/supabase';
 import { useAuth } from '../../shared/auth.jsx';
 
-export default function Home({ onOpenSettings }) {
+export default function Home({ onOpenSettings, onNavigate }) {
   const { profile } = useAuth();
   const [todayEvents, setTodayEvents] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
-  const [uncheckedCount, setUncheckedCount] = useState(0);
+  const [groceryCount, setGroceryCount] = useState(0);
+  const [homeCount, setHomeCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,21 +45,34 @@ export default function Home({ onOpenSettings }) {
 
       setUpcomingEvents(upcomingData || []);
 
-      // Fetch unchecked list items count
+      // Fetch unchecked list items count by list type
       const { data: lists } = await supabase
         .from('lists')
-        .select('id')
+        .select('id, name')
         .eq('household_id', profile.household_id);
 
       if (lists && lists.length > 0) {
-        const listIds = lists.map(l => l.id);
-        const { count } = await supabase
-          .from('list_items')
-          .select('*', { count: 'exact', head: true })
-          .in('list_id', listIds)
-          .eq('checked', false);
+        // Find Grocery and Home lists
+        const groceryList = lists.find(l => l.name.toLowerCase() === 'grocery');
+        const homeList = lists.find(l => l.name.toLowerCase() === 'home');
 
-        setUncheckedCount(count || 0);
+        if (groceryList) {
+          const { count } = await supabase
+            .from('list_items')
+            .select('*', { count: 'exact', head: true })
+            .eq('list_id', groceryList.id)
+            .eq('checked', false);
+          setGroceryCount(count || 0);
+        }
+
+        if (homeList) {
+          const { count } = await supabase
+            .from('list_items')
+            .select('*', { count: 'exact', head: true })
+            .eq('list_id', homeList.id)
+            .eq('checked', false);
+          setHomeCount(count || 0);
+        }
       }
 
       setLoading(false);
@@ -107,7 +121,10 @@ export default function Home({ onOpenSettings }) {
       </header>
 
       {/* Today's Events Card */}
-      <section style={styles.card}>
+      <button
+        style={styles.card}
+        onClick={() => onNavigate && onNavigate('calendar')}
+      >
         <div style={styles.cardHeader}>
           <div style={styles.cardIcon}>
             <Calendar size={18} />
@@ -124,13 +141,16 @@ export default function Home({ onOpenSettings }) {
         ) : (
           <p style={styles.emptyText}>No events today</p>
         )}
-      </section>
+      </button>
 
       {/* Lists Card */}
-      <section style={{
-        ...styles.card,
-        background: profile?.color === 'chassidy' ? 'var(--m-chassidy)' : 'var(--m-bob)',
-      }}>
+      <button
+        style={{
+          ...styles.card,
+          background: profile?.color === 'chassidy' ? 'var(--m-chassidy)' : 'var(--m-bob)',
+        }}
+        onClick={() => onNavigate && onNavigate('lists')}
+      >
         <div style={styles.cardHeader}>
           <div style={styles.cardIcon}>
             <ListChecks size={18} />
@@ -138,12 +158,19 @@ export default function Home({ onOpenSettings }) {
           <h2 style={styles.cardTitle}>Lists</h2>
         </div>
 
-        <p style={styles.listCount}>
-          {uncheckedCount === 0
-            ? 'All caught up!'
-            : `${uncheckedCount} item${uncheckedCount === 1 ? '' : 's'} to check off`}
-        </p>
-      </section>
+        {groceryCount === 0 && homeCount === 0 ? (
+          <p style={styles.listCount}>All caught up!</p>
+        ) : (
+          <div style={styles.listCounts}>
+            {groceryCount > 0 && (
+              <span style={styles.listCountItem}>Grocery: {groceryCount}</span>
+            )}
+            {homeCount > 0 && (
+              <span style={styles.listCountItem}>Home: {homeCount}</span>
+            )}
+          </div>
+        )}
+      </button>
 
       {/* Upcoming Events */}
       {upcomingEvents.length > 0 && (
@@ -265,10 +292,16 @@ const styles = {
     margin: 0,
   },
   card: {
+    display: 'block',
+    width: '100%',
     background: 'var(--m-gold)',
     borderRadius: 16,
     padding: 'var(--sp-3)',
     marginBottom: 'var(--sp-2)',
+    border: 'none',
+    textAlign: 'left',
+    cursor: 'pointer',
+    fontFamily: 'var(--font-body)',
   },
   cardHeader: {
     display: 'flex',
@@ -330,6 +363,15 @@ const styles = {
     fontWeight: 600,
     color: 'var(--text)',
     margin: 0,
+  },
+  listCounts: {
+    display: 'flex',
+    gap: 16,
+  },
+  listCountItem: {
+    fontSize: 15,
+    fontWeight: 600,
+    color: 'var(--text)',
   },
   upcomingSection: {
     marginTop: 'var(--sp-3)',

@@ -90,7 +90,7 @@ export default function App() {
       ) : active === 'settings' ? (
         <Settings onBack={() => setActive('home')} />
       ) : active === 'home' ? (
-        <Home onOpenSettings={() => setActive('settings')} />
+        <Home onOpenSettings={() => setActive('settings')} onNavigate={setActive} />
       ) : ActiveComponent ? (
         <ActiveComponent />
       ) : (
