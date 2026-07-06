@@ -8,36 +8,55 @@ import { supabase } from './supabase';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  // Try to restore cached profile immediately to avoid flash
   const [session, setSession] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(() => {
+    try {
+      const cached = localStorage.getItem('vesta_profile');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Timeout fallback - don't hang forever
+    let isMounted = true;
+
+    // Shorter timeout - 3s is plenty
     const timeout = setTimeout(() => {
-      if (loading) {
-        console.warn('Auth loading timeout - forcing complete');
+      if (isMounted && loading) {
+        console.warn('Auth loading timeout - using cached state');
         setLoading(false);
       }
-    }, 5000);
+    }, 3000);
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return;
       setSession(session);
-      if (session?.user) fetchProfile(session.user.id);
-      else setLoading(false);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        // No session - clear cached profile
+        localStorage.removeItem('vesta_profile');
+        setProfile(null);
+        setLoading(false);
+      }
     }).catch((err) => {
       console.error('Auth getSession error:', err);
-      setLoading(false);
+      if (isMounted) setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (!isMounted) return;
         setSession(session);
         if (session?.user) {
           await fetchProfile(session.user.id);
         } else {
+          localStorage.removeItem('vesta_profile');
           setProfile(null);
           setLoading(false);
         }
@@ -45,12 +64,13 @@ export function AuthProvider({ children }) {
     );
 
     return () => {
+      isMounted = false;
       clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
 
-  async function fetchProfile(userId) {
+  async function fetchProfile(userId, retryCount = 0) {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -59,10 +79,30 @@ export function AuthProvider({ children }) {
         .single();
 
       if (error) throw error;
+
+      // Cache the profile for faster restore
+      localStorage.setItem('vesta_profile', JSON.stringify(data));
       setProfile(data);
     } catch (err) {
       console.error('Error fetching profile:', err);
-      setProfile(null);
+
+      // Retry up to 2 times with delay
+      if (retryCount < 2) {
+        setTimeout(() => fetchProfile(userId, retryCount + 1), 1000);
+        return; // Don't set loading false yet
+      }
+
+      // After retries, keep cached profile if available
+      const cached = localStorage.getItem('vesta_profile');
+      if (cached) {
+        try {
+          setProfile(JSON.parse(cached));
+        } catch {
+          setProfile(null);
+        }
+      } else {
+        setProfile(null);
+      }
     } finally {
       setLoading(false);
     }
