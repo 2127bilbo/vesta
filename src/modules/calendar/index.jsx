@@ -1,7 +1,7 @@
 // MODULE: calendar — Cozi+AnyList hybrid: agenda, month grid, day hourly view.
 // Isolated; imports only from shared/.
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X, Clock, Trash2, Pencil, Calendar as CalIcon, List, LayoutGrid } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Clock, Trash2, Pencil, Calendar as CalIcon, List, LayoutGrid, Copy, Check } from 'lucide-react';
 import { supabase } from '../../shared/supabase';
 import { useAuth } from '../../shared/auth.jsx';
 
@@ -48,6 +48,11 @@ export default function Calendar() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Bulk edit mode states
+  const [bulkEditMode, setBulkEditMode] = useState(false);
+  const [copiedEvent, setCopiedEvent] = useState(null);
+  const [selectedDays, setSelectedDays] = useState([]);
+
   async function handleDeleteEvent(eventId) {
     await supabase.from('events').delete().eq('id', eventId);
     setDeleteConfirm(null);
@@ -64,6 +69,83 @@ export default function Calendar() {
     } else {
       handleDeleteEvent(event.id);
     }
+  }
+
+  // Bulk edit handlers
+  function toggleBulkEditMode() {
+    if (bulkEditMode) {
+      // Exiting edit mode - clear selections
+      setBulkEditMode(false);
+      setCopiedEvent(null);
+      setSelectedDays([]);
+    } else {
+      setBulkEditMode(true);
+      setView('month'); // Force month view for bulk editing
+    }
+  }
+
+  function handleCopyEvent(event) {
+    setCopiedEvent(event);
+  }
+
+  function toggleDaySelection(date) {
+    const dateStr = formatDateInput(date);
+    setSelectedDays(prev => {
+      if (prev.includes(dateStr)) {
+        return prev.filter(d => d !== dateStr);
+      }
+      return [...prev, dateStr];
+    });
+  }
+
+  async function applyEventToSelectedDays() {
+    if (!copiedEvent || selectedDays.length === 0) return;
+
+    const eventStart = new Date(copiedEvent.start_at);
+    const eventEnd = copiedEvent.end_at ? new Date(copiedEvent.end_at) : null;
+    const duration = eventEnd ? eventEnd - eventStart : 0;
+
+    const eventsToInsert = selectedDays.map(dateStr => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const newStart = new Date(year, month - 1, day, eventStart.getHours(), eventStart.getMinutes());
+      const newEnd = duration ? new Date(newStart.getTime() + duration) : null;
+
+      return {
+        household_id: profile.household_id,
+        owner_id: profile.id,
+        title: copiedEvent.title,
+        start_at: newStart.toISOString(),
+        end_at: newEnd ? newEnd.toISOString() : null,
+        all_day: copiedEvent.all_day,
+        color: copiedEvent.color,
+        reminder_minutes: copiedEvent.reminder_minutes,
+        recurrence: 'none',
+        recurrence_group_id: null,
+      };
+    });
+
+    await supabase.from('events').insert(eventsToInsert);
+    setSelectedDays([]);
+  }
+
+  async function deleteEventsFromSelectedDays() {
+    if (selectedDays.length === 0) return;
+
+    // Get all events on selected days and delete them
+    for (const dateStr of selectedDays) {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const dayStart = new Date(year, month - 1, day, 0, 0, 0);
+      const dayEnd = new Date(year, month - 1, day, 23, 59, 59);
+
+      await supabase
+        .from('events')
+        .delete()
+        .eq('household_id', profile.household_id)
+        .gte('start_at', dayStart.toISOString())
+        .lte('start_at', dayEnd.toISOString());
+    }
+
+    setSelectedDays([]);
   }
 
   // Fetch events for a wide range (current month +/- 1 month for smooth scrolling)
@@ -130,8 +212,55 @@ export default function Calendar() {
       <div style={styles.header}>
         <div style={styles.headerTop}>
           <h1 style={styles.title}>Calendar</h1>
-          <ViewToggle view={view} setView={setView} />
+          <div style={styles.headerActions}>
+            {view === 'month' && (
+              <button
+                onClick={toggleBulkEditMode}
+                style={{
+                  ...styles.editModeBtn,
+                  background: bulkEditMode ? 'var(--gold)' : 'var(--surface)',
+                  color: bulkEditMode ? 'var(--bg)' : 'var(--text-dim)',
+                }}
+              >
+                <Pencil size={16} />
+              </button>
+            )}
+            <ViewToggle view={view} setView={(v) => { setView(v); if (v !== 'month') setBulkEditMode(false); }} />
+          </div>
         </div>
+
+        {/* Bulk edit toolbar */}
+        {bulkEditMode && (
+          <div style={styles.bulkEditToolbar}>
+            <div style={styles.bulkEditInfo}>
+              {copiedEvent ? (
+                <div style={styles.copiedEventBadge}>
+                  <Copy size={14} />
+                  <span>{copiedEvent.title}</span>
+                </div>
+              ) : (
+                <span style={styles.bulkEditHint}>Tap an event to copy it</span>
+              )}
+              {selectedDays.length > 0 && (
+                <span style={styles.selectedCount}>{selectedDays.length} day{selectedDays.length > 1 ? 's' : ''} selected</span>
+              )}
+            </div>
+            <div style={styles.bulkEditActions}>
+              {copiedEvent && selectedDays.length > 0 && (
+                <button onClick={applyEventToSelectedDays} style={styles.bulkApplyBtn}>
+                  <Check size={16} />
+                  Apply
+                </button>
+              )}
+              {selectedDays.length > 0 && (
+                <button onClick={deleteEventsFromSelectedDays} style={styles.bulkDeleteBtn}>
+                  <Trash2 size={16} />
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Month navigation - shown in month and agenda views */}
         {view !== 'day' && (
@@ -176,6 +305,11 @@ export default function Calendar() {
           currentDate={currentDate}
           selectedDate={selectedDate}
           onDaySelect={handleDaySelect}
+          bulkEditMode={bulkEditMode}
+          selectedDays={selectedDays}
+          onToggleDaySelection={toggleDaySelection}
+          copiedEvent={copiedEvent}
+          onCopyEvent={handleCopyEvent}
         />
       )}
 
@@ -392,7 +526,7 @@ function AgendaView({ events, currentDate, onDaySelect, onEditEvent, onDeleteEve
 // ─────────────────────────────────────────────────────────────
 // MONTH VIEW - Calendar grid with event bars (Cozi-style)
 // ─────────────────────────────────────────────────────────────
-function MonthView({ events, currentDate, selectedDate, onDaySelect }) {
+function MonthView({ events, currentDate, selectedDate, onDaySelect, bulkEditMode, selectedDays, onToggleDaySelection, copiedEvent, onCopyEvent }) {
   const today = new Date();
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -414,6 +548,22 @@ function MonthView({ events, currentDate, selectedDate, onDaySelect }) {
     return events.filter(e => isSameDay(new Date(e.start_at), date));
   }
 
+  function isDaySelected(day) {
+    if (!day) return false;
+    const dateStr = formatDateInput(new Date(year, month, day));
+    return selectedDays.includes(dateStr);
+  }
+
+  function handleDayClick(day) {
+    if (!day) return;
+    const date = new Date(year, month, day);
+    if (bulkEditMode) {
+      onToggleDaySelection(date);
+    } else {
+      onDaySelect(date);
+    }
+  }
+
   return (
     <div style={styles.monthContainer}>
       {/* Day labels */}
@@ -430,28 +580,40 @@ function MonthView({ events, currentDate, selectedDate, onDaySelect }) {
           const date = day ? new Date(year, month, day) : null;
           const isToday = day && isSameDay(date, today);
           const isSelected = day && isSameDay(date, selectedDate);
+          const isBulkSelected = isDaySelected(day);
 
           return (
             <button
               key={idx}
-              onClick={() => day && onDaySelect(new Date(year, month, day))}
+              onClick={() => handleDayClick(day)}
               disabled={!day}
               style={{
                 ...styles.monthDay,
                 ...(isToday ? styles.monthDayToday : {}),
-                ...(isSelected ? styles.monthDaySelected : {}),
+                ...(isSelected && !bulkEditMode ? styles.monthDaySelected : {}),
+                ...(isBulkSelected ? styles.monthDayBulkSelected : {}),
               }}
             >
               {day && (
                 <>
-                  <span style={styles.monthDayNumber}>{day}</span>
+                  <span style={{
+                    ...styles.monthDayNumber,
+                    ...(isBulkSelected ? { color: 'var(--bg)' } : {}),
+                  }}>{day}</span>
                   <div style={styles.monthEventBars}>
                     {dayEvents.slice(0, 3).map(event => (
                       <div
                         key={event.id}
+                        onClick={(e) => {
+                          if (bulkEditMode) {
+                            e.stopPropagation();
+                            onCopyEvent(event);
+                          }
+                        }}
                         style={{
                           ...styles.monthEventBar,
                           background: getEventColor(event),
+                          ...(bulkEditMode && copiedEvent?.id === event.id ? styles.monthEventBarCopied : {}),
                         }}
                       >
                         <span style={styles.monthEventBarText}>{event.title}</span>
@@ -468,19 +630,31 @@ function MonthView({ events, currentDate, selectedDate, onDaySelect }) {
         })}
       </div>
 
-      {/* Selected day events */}
-      <div style={styles.monthSelectedEvents}>
-        <h3 style={styles.monthSelectedTitle}>
-          {selectedDate.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}
-        </h3>
-        {getEventsForDay(selectedDate.getDate()).length > 0 ? (
-          getEventsForDay(selectedDate.getDate()).map(event => (
-            <EventCard key={event.id} event={event} />
-          ))
-        ) : (
-          <p style={styles.noEventsText}>No events this day</p>
-        )}
-      </div>
+      {/* Selected day events - show in normal mode or when event is copied in bulk mode */}
+      {(!bulkEditMode || copiedEvent) && (
+        <div style={styles.monthSelectedEvents}>
+          <h3 style={styles.monthSelectedTitle}>
+            {bulkEditMode && copiedEvent ? 'Copied Event' : selectedDate.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}
+          </h3>
+          {bulkEditMode && copiedEvent ? (
+            <EventCard event={copiedEvent} />
+          ) : getEventsForDay(selectedDate.getDate()).length > 0 ? (
+            getEventsForDay(selectedDate.getDate()).map(event => (
+              <EventCard key={event.id} event={event} />
+            ))
+          ) : (
+            <p style={styles.noEventsText}>No events this day</p>
+          )}
+        </div>
+      )}
+
+      {/* Instructions in bulk edit mode */}
+      {bulkEditMode && !copiedEvent && (
+        <div style={styles.bulkEditInstructions}>
+          <p>Tap an event bar to copy it, then tap days to select them.</p>
+          <p>Use Apply to paste or Delete to remove all events from selected days.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1261,6 +1435,21 @@ const styles = {
     justifyContent: 'space-between',
     marginBottom: 'var(--sp-2)',
   },
+  headerActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editModeBtn: {
+    width: 36,
+    height: 36,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+    cursor: 'pointer',
+  },
   title: {
     fontFamily: 'var(--font-display)',
     fontSize: 24,
@@ -1453,6 +1642,14 @@ const styles = {
   },
   monthDaySelected: {
     background: 'var(--surface-2)',
+  },
+  monthDayBulkSelected: {
+    background: 'var(--gold)',
+    borderColor: 'var(--gold)',
+  },
+  monthEventBarCopied: {
+    outline: '2px solid white',
+    outlineOffset: 1,
   },
   monthDayNumber: {
     fontSize: 12,
@@ -1898,5 +2095,79 @@ const styles = {
     background: 'white',
     transition: 'transform 0.2s',
     boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+  },
+
+  // Bulk edit mode
+  bulkEditToolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 12px',
+    background: 'var(--surface)',
+    borderRadius: 10,
+    marginBottom: 'var(--sp-2)',
+    gap: 8,
+  },
+  bulkEditInfo: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  copiedEventBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 13,
+    fontWeight: 600,
+    color: 'var(--gold)',
+  },
+  bulkEditHint: {
+    fontSize: 12,
+    color: 'var(--text-dim)',
+  },
+  selectedCount: {
+    fontSize: 11,
+    color: 'var(--text-dim)',
+  },
+  bulkEditActions: {
+    display: 'flex',
+    gap: 8,
+  },
+  bulkApplyBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '8px 12px',
+    background: 'var(--gold)',
+    border: 'none',
+    borderRadius: 8,
+    color: 'var(--bg)',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  bulkDeleteBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '8px 12px',
+    background: '#FF3B30',
+    border: 'none',
+    borderRadius: 8,
+    color: 'white',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  bulkEditInstructions: {
+    marginTop: 'var(--sp-3)',
+    padding: 'var(--sp-3)',
+    background: 'var(--surface)',
+    borderRadius: 10,
+    textAlign: 'center',
+    fontSize: 13,
+    color: 'var(--text-dim)',
+    lineHeight: 1.5,
   },
 };
