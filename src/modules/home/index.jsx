@@ -8,8 +8,7 @@ export default function Home({ onOpenSettings, onNavigate }) {
   const { profile } = useAuth();
   const [todayEvents, setTodayEvents] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
-  const [groceryCount, setGroceryCount] = useState(0);
-  const [homeCount, setHomeCount] = useState(0);
+  const [listCounts, setListCounts] = useState([]); // [{name, count}]
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,34 +44,25 @@ export default function Home({ onOpenSettings, onNavigate }) {
 
       setUpcomingEvents(upcomingData || []);
 
-      // Fetch unchecked list items count by list type
+      // Fetch unchecked list items count for each list (up to 3)
       const { data: lists } = await supabase
         .from('lists')
         .select('id, name')
-        .eq('household_id', profile.household_id);
+        .eq('household_id', profile.household_id)
+        .order('sort_order')
+        .limit(3);
 
       if (lists && lists.length > 0) {
-        // Find Grocery and Home lists
-        const groceryList = lists.find(l => l.name.toLowerCase() === 'grocery');
-        const homeList = lists.find(l => l.name.toLowerCase() === 'home');
-
-        if (groceryList) {
+        const counts = [];
+        for (const list of lists) {
           const { count } = await supabase
             .from('list_items')
             .select('*', { count: 'exact', head: true })
-            .eq('list_id', groceryList.id)
+            .eq('list_id', list.id)
             .eq('checked', false);
-          setGroceryCount(count || 0);
+          counts.push({ name: list.name, count: count || 0 });
         }
-
-        if (homeList) {
-          const { count } = await supabase
-            .from('list_items')
-            .select('*', { count: 'exact', head: true })
-            .eq('list_id', homeList.id)
-            .eq('checked', false);
-          setHomeCount(count || 0);
-        }
+        setListCounts(counts);
       }
 
       setLoading(false);
@@ -158,16 +148,13 @@ export default function Home({ onOpenSettings, onNavigate }) {
           <h2 style={styles.cardTitle}>Lists</h2>
         </div>
 
-        {groceryCount === 0 && homeCount === 0 ? (
+        {listCounts.every(l => l.count === 0) ? (
           <p style={styles.listCount}>All caught up!</p>
         ) : (
           <div style={styles.listCounts}>
-            {groceryCount > 0 && (
-              <span style={styles.listCountItem}>Grocery: {groceryCount}</span>
-            )}
-            {homeCount > 0 && (
-              <span style={styles.listCountItem}>Home: {homeCount}</span>
-            )}
+            {listCounts.filter(l => l.count > 0).map(l => (
+              <span key={l.name} style={styles.listCountItem}>{l.name}: {l.count}</span>
+            ))}
           </div>
         )}
       </button>

@@ -1,6 +1,6 @@
 // MODULE: lists — check-off lists with realtime sync. Isolated; imports only from shared/.
 import { useState, useEffect } from 'react';
-import { Plus, Check, Trash2, ShoppingCart, Home as HomeIcon } from 'lucide-react';
+import { Plus, Check, Trash2, ShoppingCart, Home as HomeIcon, ListTodo, Briefcase, Heart, Star, X, MoreVertical } from 'lucide-react';
 import { supabase } from '../../shared/supabase';
 import { useAuth } from '../../shared/auth.jsx';
 
@@ -12,7 +12,20 @@ const DEFAULT_LISTS = [
 const ICONS = {
   'shopping-cart': ShoppingCart,
   'home': HomeIcon,
+  'list': ListTodo,
+  'work': Briefcase,
+  'heart': Heart,
+  'star': Star,
 };
+
+const ICON_OPTIONS = [
+  { id: 'shopping-cart', icon: ShoppingCart, label: 'Shopping' },
+  { id: 'home', icon: HomeIcon, label: 'Home' },
+  { id: 'list', icon: ListTodo, label: 'Todo' },
+  { id: 'work', icon: Briefcase, label: 'Work' },
+  { id: 'heart', icon: Heart, label: 'Health' },
+  { id: 'star', icon: Star, label: 'Important' },
+];
 
 export default function Lists() {
   const { profile } = useAuth();
@@ -21,6 +34,8 @@ export default function Lists() {
   const [items, setItems] = useState([]);
   const [newItem, setNewItem] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showAddList, setShowAddList] = useState(false);
+  const [showListMenu, setShowListMenu] = useState(false);
 
   // Fetch lists
   useEffect(() => {
@@ -224,6 +239,61 @@ export default function Lists() {
     }
   }
 
+  async function createList(name, icon) {
+    const { data, error } = await supabase
+      .from('lists')
+      .insert({
+        household_id: profile.household_id,
+        name: name.trim(),
+        icon: icon,
+        sort_order: lists.length,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating list:', error);
+      return;
+    }
+
+    setLists(prev => [...prev, data]);
+    setActiveList(data);
+    setShowAddList(false);
+  }
+
+  async function deleteList(listToDelete) {
+    if (lists.length <= 1) {
+      alert("You need at least one list!");
+      return;
+    }
+
+    // Delete all items in the list first
+    await supabase
+      .from('list_items')
+      .delete()
+      .eq('list_id', listToDelete.id);
+
+    // Delete the list
+    const { error } = await supabase
+      .from('lists')
+      .delete()
+      .eq('id', listToDelete.id);
+
+    if (error) {
+      console.error('Error deleting list:', error);
+      return;
+    }
+
+    const newLists = lists.filter(l => l.id !== listToDelete.id);
+    setLists(newLists);
+
+    // Switch to first list if we deleted the active one
+    if (activeList?.id === listToDelete.id) {
+      setActiveList(newLists[0] || null);
+    }
+    setShowListMenu(false);
+  }
+
   if (loading) {
     return (
       <div style={styles.loading}>
@@ -238,26 +308,55 @@ export default function Lists() {
   return (
     <div style={styles.container}>
       {/* List tabs */}
-      <div style={styles.tabs}>
-        {lists.map(list => {
-          const Icon = ICONS[list.icon] || ShoppingCart;
-          const isActive = activeList?.id === list.id;
-          return (
-            <button
-              key={list.id}
-              onClick={() => setActiveList(list)}
-              style={{
-                ...styles.tab,
-                background: isActive ? 'var(--surface-2)' : 'transparent',
-                color: isActive ? 'var(--text)' : 'var(--text-dim)',
-              }}
-            >
-              <Icon size={16} />
-              <span>{list.name}</span>
-            </button>
-          );
-        })}
+      <div style={styles.tabsRow}>
+        <div style={styles.tabs}>
+          {lists.map(list => {
+            const Icon = ICONS[list.icon] || ListTodo;
+            const isActive = activeList?.id === list.id;
+            return (
+              <button
+                key={list.id}
+                onClick={() => setActiveList(list)}
+                style={{
+                  ...styles.tab,
+                  background: isActive ? 'var(--surface-2)' : 'transparent',
+                  color: isActive ? 'var(--text)' : 'var(--text-dim)',
+                }}
+              >
+                <Icon size={16} />
+                <span>{list.name}</span>
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setShowAddList(true)}
+            style={styles.addListBtn}
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+        {activeList && (
+          <button
+            onClick={() => setShowListMenu(!showListMenu)}
+            style={styles.menuBtn}
+          >
+            <MoreVertical size={18} />
+          </button>
+        )}
       </div>
+
+      {/* List menu */}
+      {showListMenu && activeList && (
+        <div style={styles.listMenu}>
+          <button
+            onClick={() => deleteList(activeList)}
+            style={styles.deleteListBtn}
+          >
+            <Trash2 size={14} />
+            Delete "{activeList.name}"
+          </button>
+        </div>
+      )}
 
       {/* Add item form */}
       <form onSubmit={addItem} style={styles.form}>
@@ -319,6 +418,78 @@ export default function Lists() {
             ))}
           </>
         )}
+      </div>
+
+      {/* Add List Modal */}
+      {showAddList && (
+        <AddListModal
+          onClose={() => setShowAddList(false)}
+          onCreate={createList}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddListModal({ onClose, onCreate }) {
+  const [name, setName] = useState('');
+  const [icon, setIcon] = useState('list');
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onCreate(name, icon);
+  }
+
+  return (
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={styles.modal} onClick={e => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <button onClick={onClose} style={styles.modalCancel}>Cancel</button>
+          <h3 style={styles.modalTitle}>New List</h3>
+          <button
+            onClick={handleSubmit}
+            disabled={!name.trim()}
+            style={{
+              ...styles.modalSave,
+              opacity: name.trim() ? 1 : 0.5,
+            }}
+          >
+            Create
+          </button>
+        </div>
+
+        <div style={styles.modalBody}>
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="List name"
+            style={styles.modalInput}
+            autoFocus
+          />
+
+          <p style={styles.iconLabel}>Icon</p>
+          <div style={styles.iconGrid}>
+            {ICON_OPTIONS.map(opt => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setIcon(opt.id)}
+                  style={{
+                    ...styles.iconOption,
+                    background: icon === opt.id ? 'var(--gold)' : 'var(--surface-2)',
+                    color: icon === opt.id ? 'var(--bg)' : 'var(--text)',
+                  }}
+                >
+                  <Icon size={20} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -385,10 +556,17 @@ const styles = {
     height: '100%',
     color: 'var(--text-dim)',
   },
+  tabsRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 'var(--sp-3)',
+  },
   tabs: {
     display: 'flex',
     gap: 'var(--sp-2)',
-    marginBottom: 'var(--sp-3)',
+    flex: 1,
+    overflowX: 'auto',
   },
   tab: {
     display: 'flex',
@@ -401,6 +579,54 @@ const styles = {
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
+  addListBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    border: '1px dashed var(--border)',
+    borderRadius: 8,
+    background: 'transparent',
+    color: 'var(--text-dim)',
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  menuBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-dim)',
+    cursor: 'pointer',
+  },
+  listMenu: {
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 'var(--sp-2)',
+  },
+  deleteListBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '10px 12px',
+    background: 'none',
+    border: 'none',
+    borderRadius: 6,
+    color: '#FF3B30',
+    fontFamily: 'var(--font-body)',
+    fontSize: 14,
+    cursor: 'pointer',
+    textAlign: 'left',
   },
   form: {
     display: 'flex',
@@ -499,6 +725,90 @@ const styles = {
     color: 'var(--text-dim)',
     fontFamily: 'var(--font-body)',
     fontSize: 11,
+    cursor: 'pointer',
+  },
+
+  // Modal
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.7)',
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  modal: {
+    width: '100%',
+    maxWidth: 400,
+    background: 'var(--surface)',
+    borderRadius: '16px 16px 0 0',
+  },
+  modalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 'var(--sp-3)',
+    borderBottom: '1px solid var(--border)',
+  },
+  modalTitle: {
+    fontFamily: 'var(--font-display)',
+    fontSize: 17,
+    fontWeight: 600,
+    color: 'var(--text)',
+    margin: 0,
+  },
+  modalCancel: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-dim)',
+    fontFamily: 'var(--font-body)',
+    fontSize: 15,
+    cursor: 'pointer',
+  },
+  modalSave: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--gold)',
+    fontFamily: 'var(--font-body)',
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  modalBody: {
+    padding: 'var(--sp-3)',
+    paddingBottom: 'calc(var(--sp-3) + env(safe-area-inset-bottom))',
+  },
+  modalInput: {
+    width: '100%',
+    padding: '14px 16px',
+    background: 'var(--surface-2)',
+    border: '1px solid var(--border)',
+    borderRadius: 10,
+    color: 'var(--text)',
+    fontFamily: 'var(--font-body)',
+    fontSize: 17,
+    outline: 'none',
+    marginBottom: 'var(--sp-3)',
+  },
+  iconLabel: {
+    fontSize: 14,
+    color: 'var(--text-dim)',
+    marginBottom: 'var(--sp-2)',
+  },
+  iconGrid: {
+    display: 'flex',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  iconOption: {
+    width: 44,
+    height: 44,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    border: 'none',
     cursor: 'pointer',
   },
 };
