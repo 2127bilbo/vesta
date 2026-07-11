@@ -1,8 +1,25 @@
 // MODULE: lists — check-off lists with realtime sync. Isolated; imports only from shared/.
 import { useState, useEffect } from 'react';
-import { Plus, Check, Trash2, ShoppingCart, Home as HomeIcon, ListTodo, Briefcase, Heart, Star, X, MoreVertical } from 'lucide-react';
+import { Plus, Check, Trash2, ShoppingCart, Home as HomeIcon, ListTodo, Briefcase, Heart, Star, X, MoreVertical, GripVertical } from 'lucide-react';
 import { supabase } from '../../shared/supabase';
 import { useAuth } from '../../shared/auth.jsx';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const DEFAULT_LISTS = [
   { name: 'Grocery', icon: 'shopping-cart' },
@@ -78,7 +95,7 @@ export default function Lists() {
         .select('*, checked_by_profile:profiles!list_items_checked_by_fkey(display_name, color)')
         .eq('list_id', activeList.id)
         .order('checked')
-        .order('created_at', { ascending: false });
+        .order('sort_order', { ascending: true });
 
       if (error) {
         console.error('Error fetching items:', error);
@@ -139,6 +156,13 @@ export default function Lists() {
     e.preventDefault();
     if (!newItem.trim() || !activeList) return;
 
+    // Calculate sort_order for new item (put at top)
+    const unchecked = items.filter(i => !i.checked);
+    const minSortOrder = unchecked.length > 0
+      ? Math.min(...unchecked.map(i => i.sort_order ?? 0))
+      : 0;
+    const newSortOrder = minSortOrder - 1;
+
     const tempId = `temp-${Date.now()}`;
     const newItemObj = {
       id: tempId,
@@ -146,11 +170,12 @@ export default function Lists() {
       text: newItem.trim(),
       checked: false,
       added_by: profile.id,
+      sort_order: newSortOrder,
       created_at: new Date().toISOString(),
     };
 
     // Optimistic update
-    setItems(prev => [newItemObj, ...prev]);
+    setItems(prev => [newItemObj, ...prev.filter(i => !i.checked), ...prev.filter(i => i.checked)]);
     setNewItem('');
 
     const { data, error } = await supabase
@@ -159,6 +184,7 @@ export default function Lists() {
         list_id: activeList.id,
         text: newItemObj.text,
         added_by: profile.id,
+        sort_order: newSortOrder,
       })
       .select()
       .single();
@@ -294,6 +320,56 @@ export default function Lists() {
     setShowListMenu(false);
   }
 
+  // Drag-and-drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const uncheckedItems = items.filter(i => !i.checked);
+  const checkedItems = items.filter(i => i.checked);
+
+  async function handleDragEnd(event) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = uncheckedItems.findIndex(i => i.id === active.id);
+    const newIndex = uncheckedItems.findIndex(i => i.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Reorder the unchecked items
+    const reorderedUnchecked = arrayMove(uncheckedItems, oldIndex, newIndex);
+
+    // Update local state optimistically
+    setItems([...reorderedUnchecked, ...checkedItems]);
+
+    // Update sort_order in database
+    const updates = reorderedUnchecked.map((item, index) => ({
+      id: item.id,
+      sort_order: index,
+    }));
+
+    // Batch update all sort_orders
+    for (const update of updates) {
+      const { error } = await supabase
+        .from('list_items')
+        .update({ sort_order: update.sort_order })
+        .eq('id', update.id);
+
+      if (error) {
+        console.error('Error updating sort order:', error);
+      }
+    }
+  }
+
   if (loading) {
     return (
       <div style={styles.loading}>
@@ -301,9 +377,6 @@ export default function Lists() {
       </div>
     );
   }
-
-  const uncheckedItems = items.filter(i => !i.checked);
-  const checkedItems = items.filter(i => i.checked);
 
   return (
     <div style={styles.container}>
@@ -386,15 +459,26 @@ export default function Lists() {
           <p style={styles.empty}>No items yet. Add something above!</p>
         )}
 
-        {uncheckedItems.map(item => (
-          <ListItem
-            key={item.id}
-            item={item}
-            onToggle={() => toggleItem(item)}
-            onDelete={() => deleteItem(item)}
-            userColor={profile?.color}
-          />
-        ))}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={uncheckedItems.map(i => i.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {uncheckedItems.map(item => (
+              <SortableListItem
+                key={item.id}
+                item={item}
+                onToggle={() => toggleItem(item)}
+                onDelete={() => deleteItem(item)}
+                userColor={profile?.color}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
 
         {checkedItems.length > 0 && (
           <>
@@ -495,7 +579,36 @@ function AddListModal({ onClose, onCreate }) {
   );
 }
 
-function ListItem({ item, onToggle, onDelete, userColor }) {
+function SortableListItem({ item, onToggle, onDelete, userColor }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <ListItem
+        item={item}
+        onToggle={onToggle}
+        onDelete={onDelete}
+        userColor={userColor}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  );
+}
+
+function ListItem({ item, onToggle, onDelete, userColor, dragHandleProps }) {
   const checkedByName = item.checked_by_profile?.display_name;
   const checkedByColor = item.checked_by_profile?.color || userColor;
 
@@ -506,6 +619,12 @@ function ListItem({ item, onToggle, onDelete, userColor }) {
         opacity: item.checked ? 0.6 : 1,
       }}
     >
+      {dragHandleProps && (
+        <button {...dragHandleProps} style={styles.dragHandle}>
+          <GripVertical size={16} />
+        </button>
+      )}
+
       <button
         onClick={onToggle}
         style={{
@@ -671,6 +790,18 @@ const styles = {
     gap: 'var(--sp-2)',
     padding: 'var(--sp-2) 0',
     borderBottom: '1px solid var(--border)',
+    background: 'var(--surface)',
+  },
+  dragHandle: {
+    padding: 4,
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-dim)',
+    cursor: 'grab',
+    touchAction: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   checkbox: {
     width: 24,
